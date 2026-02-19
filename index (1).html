@@ -1,0 +1,325 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>MiniSnap</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: #111;
+      color: white;
+      margin: 0;
+      padding: 20px;
+    }
+
+
+    input, button {
+      padding: 8px;
+      margin: 5px 0;
+    }
+
+
+    button {
+      cursor: pointer;
+    }
+
+
+    img {
+      max-width: 100%;
+      border-radius: 12px;
+    }
+
+
+    .card {
+      background: #222;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+    }
+
+
+    .story {
+      display: inline-block;
+      margin-right: 10px;
+      text-align: center;
+    }
+
+
+  </style>
+</head>
+<body>
+
+
+<h1>📸 MiniSnap</h1>
+
+
+<div id="login">
+  <h3>Enter Username</h3>
+  <input id="usernameInput" placeholder="Username" />
+  <button onclick="login()">Enter</button>
+</div>
+
+
+<div id="app" style="display:none;">
+
+
+  <h2 id="welcome"></h2>
+  <button onclick="logout()">Logout</button>
+
+
+  <h2>Send Snap</h2>
+  <div class="card">
+    <input type="file" id="snapFile" accept="image/*" />
+    <input id="recipientInput" placeholder="Recipient username" />
+    <button onclick="sendSnap()">Send Snap</button>
+  </div>
+
+
+  <h2>Inbox</h2>
+  <div id="inbox"></div>
+
+
+  <h2>Post Story</h2>
+  <div class="card">
+    <input type="file" id="storyFile" accept="image/*" />
+    <button onclick="postStory()">Post Story</button>
+  </div>
+
+
+  <h2>Stories</h2>
+  <div id="stories"></div>
+
+
+</div>
+
+
+<script>
+
+
+let currentUser = null;
+
+
+/* =====================
+   LOGIN SYSTEM
+===================== */
+
+
+function login() {
+  const username = document.getElementById("usernameInput").value.trim();
+  if (!username) return alert("Enter username");
+
+
+  localStorage.setItem("minisnap_user", username);
+  currentUser = username;
+  showApp();
+}
+
+
+function logout() {
+  localStorage.removeItem("minisnap_user");
+  location.reload();
+}
+
+
+function checkLogin() {
+  const saved = localStorage.getItem("minisnap_user");
+  if (saved) {
+    currentUser = saved;
+    showApp();
+  }
+}
+
+
+function showApp() {
+  document.getElementById("login").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  document.getElementById("welcome").innerText = "Welcome, " + currentUser;
+  loadInbox();
+  loadStories();
+}
+
+
+checkLogin();
+
+
+/* =====================
+   DATA HELPERS
+===================== */
+
+
+function getSnaps() {
+  return JSON.parse(localStorage.getItem("minisnap_snaps") || "[]");
+}
+
+
+function saveSnaps(snaps) {
+  localStorage.setItem("minisnap_snaps", JSON.stringify(snaps));
+}
+
+
+function getStories() {
+  return JSON.parse(localStorage.getItem("minisnap_stories") || "[]");
+}
+
+
+function saveStories(stories) {
+  localStorage.setItem("minisnap_stories", JSON.stringify(stories));
+}
+
+
+/* =====================
+   SEND SNAP
+===================== */
+
+
+function sendSnap() {
+  const file = document.getElementById("snapFile").files[0];
+  const recipient = document.getElementById("recipientInput").value.trim();
+
+
+  if (!file || !recipient) return alert("Select image and recipient");
+
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const snaps = getSnaps();
+
+
+    snaps.push({
+      id: Date.now(),
+      sender: currentUser,
+      recipient: recipient,
+      image: e.target.result,
+      createdAt: Date.now()
+    });
+
+
+    saveSnaps(snaps);
+    alert("Snap sent!");
+  };
+
+
+  reader.readAsDataURL(file);
+}
+
+
+/* =====================
+   INBOX
+===================== */
+
+
+function loadInbox() {
+  const snaps = getSnaps();
+  const inbox = document.getElementById("inbox");
+  inbox.innerHTML = "";
+
+
+  const mySnaps = snaps.filter(s => s.recipient === currentUser);
+
+
+  if (mySnaps.length === 0) {
+    inbox.innerHTML = "<p>No snaps</p>";
+    return;
+  }
+
+
+  mySnaps.forEach(snap => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <p>Snap from ${snap.sender}</p>
+      <button onclick="viewSnap(${snap.id})">Open</button>
+    `;
+    inbox.appendChild(div);
+  });
+}
+
+
+function viewSnap(id) {
+  const snaps = getSnaps();
+  const snap = snaps.find(s => s.id === id);
+
+
+  document.body.innerHTML = `
+    <div style="text-align:center;">
+      <img src="${snap.image}" />
+      <p>Closing in 5 seconds...</p>
+    </div>
+  `;
+
+
+  setTimeout(() => {
+    const updated = snaps.filter(s => s.id !== id);
+    saveSnaps(updated);
+    location.reload();
+  }, 5000);
+}
+
+
+/* =====================
+   STORIES
+===================== */
+
+
+function postStory() {
+  const file = document.getElementById("storyFile").files[0];
+  if (!file) return alert("Select image");
+
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const stories = getStories();
+
+
+    stories.push({
+      id: Date.now(),
+      user: currentUser,
+      image: e.target.result,
+      createdAt: Date.now()
+    });
+
+
+    saveStories(stories);
+    alert("Story posted!");
+    loadStories();
+  };
+
+
+  reader.readAsDataURL(file);
+}
+
+
+function loadStories() {
+  const stories = getStories();
+  const container = document.getElementById("stories");
+  container.innerHTML = "";
+
+
+  const now = Date.now();
+
+
+  const activeStories = stories.filter(s => now - s.createdAt < 24 * 60 * 60 * 1000);
+
+
+  activeStories.forEach(story => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <p>${story.user}'s Story</p>
+      <img src="${story.image}" />
+    `;
+    container.appendChild(div);
+  });
+
+
+  // Remove expired stories
+  const validStories = stories.filter(s => now - s.createdAt < 24 * 60 * 60 * 1000);
+  saveStories(validStories);
+}
+
+
+</script>
+
+
+</body>
+</html>
